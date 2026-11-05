@@ -1,0 +1,10 @@
+{
+  "name": "codex-idea-delivery",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "PATH=/opt/homebrew/opt/node@24/bin:$PATH node --disable-warning=ExperimentalWarning --test",
+    "check": "npm test && node scripts/validate-task-context.mjs templates/task-context.example.json && git diff --check"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "taskId": "idea-1234abcd",
+  "goal": "Deliver the approved feature with evidence from the project checks.",
+  "nonGoals": ["Do not add unapproved product features."],
+  "approvedScope": ["Implement the approved behavior", "Run the listed acceptance checks"],
+  "baseline": {
+    "commit": "0123456789abcdef",
+    "facts": ["The project uses Node.js."],
+    "checks": ["npm test currently passes"]
+  },
+  "repository": {
+    "path": "/absolute/path/to/repository",
+    "worktree": "/absolute/path/to/task-worktree",
+    "branch": "codex/idea-1234abcd"
+  },
+  "acceptanceChecks": ["npm test", "git diff --check"],
+  "workers": [
+    {
+      "id": "backend",
+      "role": "Backend implementation",
+      "assignment": "Implement the approved server behavior and its focused tests.",
+      "fileAllowlist": ["server/", "test/server/"],
+      "dependsOn": [],
+      "interfaces": ["Export createApp() from server/app.js"],
+      "deliverables": ["Implementation", "Focused test results"]
+    },
+    {
+      "id": "frontend",
+      "role": "Frontend implementation",
+      "assignment": "Implement the approved interface using the documented server contract.",
+      "fileAllowlist": ["public/"],
+      "dependsOn": ["backend"],
+      "interfaces": ["Consume the documented HTTP API"],
+      "deliverables": ["Implementation", "Manual smoke-test evidence"]
+    }
+  ],
+  "decisionGates": {
+    "notifyUserWhen": ["A proposed change expands approved scope", "Acceptance criteria conflict", "The bounded repair limit is exhausted", "Merge or release is ready for a user decision"],
+    "autoRouteWhen": ["A review finding is within approved scope and has a clear owner", "A CI failure has a reproducible cause within approved scope"]
+  }
+}
