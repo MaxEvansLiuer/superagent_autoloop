@@ -20,6 +20,7 @@ test("new tasks are read-only and resume without the incompatible --worktree fla
   const first = codexArgs(turn, false);
   assert.ok(first.includes('sandbox_mode="read-only"'));
   assert.ok(first.includes("features.multi_agent=true"));
+  assert.ok(!first.includes("--add-dir"));
   assert.ok(!first.includes("--worktree"));
 
   const resumed = codexArgs({ ...turn, resume: "thread-1" }, false);
@@ -56,6 +57,9 @@ test("only an exact approval in the resumed task enables Worktree writes", () =>
     decided: [{ card: 3, title: "其他审批", choice: "同意，开始实现" }],
   }), false);
   assert.ok(codexArgs({ resume: "thread-1" }, true).includes('sandbox_mode="workspace-write"'));
+  const writable = codexArgs({ resume: "thread-1" }, true, ["/tmp/repo/.git/worktrees/task", "/tmp/repo/.git"]);
+  assert.deepEqual(writable.slice(0, 6), ["exec", "--add-dir", "/tmp/repo/.git/worktrees/task", "--add-dir", "/tmp/repo/.git", "resume"]);
+  assert.ok(codexArgs({ resume: "thread-1" }, false, ["/tmp/repo/.git/worktrees/task", "/tmp/repo/.git"]).every((arg) => arg !== "--add-dir" && arg !== "/tmp/repo/.git/worktrees/task" && arg !== "/tmp/repo/.git"));
   assert.ok(codexArgs({ resume: "thread-1" }, false).includes('sandbox_mode="read-only"'));
 });
 

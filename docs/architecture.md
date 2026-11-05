@@ -1,6 +1,6 @@
 # 本机 Codex Idea-to-Delivery 架构
 
-状态：单仓库本机 MVP 已实现；真实 GitHub/GitLab 远端闭环仍待验收。日期：2026-11-05。
+状态：单仓库本机 MVP 已实现；海战棋试点已验证 GitHub PR 与通过 CI 回流，真实失败修复耗尽和 GitLab 远端仍待验收。日期：2026-11-05。
 
 ## 目标
 
@@ -55,7 +55,7 @@ flowchart TD
 ## 权限与止损
 
 - 当前 MVP 提供本地点子输入和单仓库路由；切换半成品项目时重配 `IDEA_REPO_PATH`。GitHub CI 使用 `gh run list`、GitLab CI 使用 `glab ci list` 定时轮询，不接 Issue/Webhook。
-- Router 首轮只读；用户批准后才允许本任务 Worker 写入任务 Worktree。原始仓库、用户配置、凭据和其他项目只读；不把事件正文当作系统指令。
+- Router 首轮只读；用户批准后，本任务 Worker 才能写入任务 Worktree，并将任务专属 Git directory 与仓库的 Git common directory 作为额外写入根，供索引、提交元数据和分支引用使用。原始产品文件仍按任务白名单限制；用户配置、凭据和其他项目只读；不把事件正文当作系统指令。
 - 自动动作限于创建 Worktree、修改文件、运行已核实的检查、创建 `codex/<slug>` 分支、推送并开 PR。
 - 不自动合并、发版、部署、删除数据或对外发消息。缺权限、认证、方向冲突或验收条件不明确时暂停。
 - CI 自动修复最多 2 次；轮询按任务分支上不同失败提交计数，并在第三次失败事件上设置 `repairExhausted`，Router 不再派修复 Worker，只提供证据与选项。不会降低测试、跳过测试或改验收条件。
@@ -66,20 +66,20 @@ flowchart TD
 - 本机：macOS；Codex CLI `0.166.0-alpha.6`；系统默认 Node 保持 `v23.4.0`，项目脚本显式使用独立 Homebrew Node 24 `24.22.2_2`；GitHub CLI `2.87.3`。Autoloop 已装在本项目 `.local` 隔离目录，前台运行已实测，尚未安装为登录服务。实测于 2026-11-05。
 - Autoloop 的官方 Codex 适配器能保存 thread id 并生成 `codex://threads/<id>` 链接；但实测 `codex exec --worktree` 不能用于 resume（CLI 返回“cannot resume an existing session”）。因此不能把该 flag 机械地加到每轮命令。
 - Codex CLI 的 rollout JSONL 记录原生 `collaboration.spawn_agent` 与 `SubAgentActivity` 生命周期，包含子会话 ID、Worker 路径和状态。`scripts/codex-subagents.mjs <主会话 ID>` 从主会话日志提取这些字段，避免依赖 Router 自述。2026-11-05 的本机海战棋试点实测服务端、前端、测试和只读 reviewer 子会话，并核对了各自状态和子会话 ID。
-- MVP 自定义 Router 首次收到事件时创建任务级 detached Git Worktree，以规则固定的原项目 `cwd` 作为 Git 仓库入口；Codex Router Session 从该 Worktree 启动。续接同一 thread 时回到同一路径，不使用 `--worktree`，获批后才创建 `codex/<任务编号>` 分支并提升到 workspace-write。版本化任务包约束任务范围、角色拆分、依赖和文件所有权。工作树复用、权限闸门、独立审查回流和多 Worker 并行均有自动化或实际运行证据。
+- MVP 自定义 Router 首次收到事件时创建任务级 detached Git Worktree，以规则固定的原项目 `cwd` 作为 Git 仓库入口；Codex Router Session 从该 Worktree 启动。续接同一 thread 时回到同一路径，不使用 `--worktree`。获批后才创建 `codex/<任务编号>` 分支、提升到 workspace-write，并附加任务专属 Git directory 与仓库 Git common directory 作为可写根；未批准的规划会话不会获得 Git 元数据写权限。版本化任务包约束任务范围、角色拆分、依赖和文件所有权。工作树复用、权限闸门、独立审查回流和多 Worker 并行均有自动化或实际运行证据。
 - Agent-Autoloop 规则配置有固定 `cwd`，README 未声明动态 Worktree 管理；任务级 worker adapter 负责按不可变事件对象编号、安全创建与复用 Worktree。
 - Autoloop 要求 Node 24。本机保留系统 Node 23.4.0，并用 Homebrew Node 24.22.2_2 启动本地中台和运行项目命令。
 - DeepSeek 的 `dsh-superagent` 是研究原型。本工具采用 Router/Worker 分层、联合上下文、任务订阅直达和并行执行的设计；继续使用 Codex CLI 原生 multi-agent，不把 DeepSeek 原型误当成可直接安装的 Codex 插件。原文把 Router 定义为不执行具体任务的全局协调者，Worker 持有隔离上下文；任务可并行但需由 Router 集成并负责用户沟通。
-- 海战棋试点 6/6 规则与 HTTP 测试通过，并在 `0.0.0.0:3000` 启动；两个独立浏览器客户端用 `127.0.0.1` 与 `localhost` 完成整局。尚未用第二台物理设备验收真实 LAN，也未推送或创建远端 PR。
-- 发布器在临时 bare Git 远端实测 fetch、主分支祖先检查、任务分支 push 和模拟 GitHub PR 创建；GitLab 路径用模拟 `glab` 覆盖。真实 GitHub/GitLab 认证、PR/MR 与 CI 仍待有远端项目验收。
-- CI 轮询逻辑测试覆盖等待所有工作流完成、失败提交去重、通过回执和两轮修复上限；试点无 GitHub 远端，因此没有真实 CI 事件回流验收。
+- 海战棋试点在本机宿主环境 6/6 规则与 HTTP 测试通过，两个独立浏览器客户端用 `127.0.0.1` 与 `localhost` 完成整局；其 README/CI 改动已推送到 [`PR #1`](https://github.com/MaxEvansLiuer/seabattle/pull/1)，两个 GitHub Actions 检查 6/6 通过，CI 轮询发出的 `ci.passed` 已续接同一 Autoloop lane。尚未用第二台物理设备验收真实 LAN，也未部署公网游戏服务器。
+- 发布器在临时 bare Git 远端实测 fetch、主分支祖先检查、任务分支 push 和 PR 创建；GitHub 路径另在海战棋真实远端验收。GitLab 路径由模拟 `glab` 覆盖，真实认证、推送和 MR 尚未验收。
+- CI 轮询逻辑测试覆盖等待所有工作流完成、失败提交去重、通过回执和两轮修复上限；真实远端只验证了通过回流，失败后的两轮自动修复和耗尽暂停仍没有真实端到端证据。
 
 ## MVP 阶段
 
 1. **已完成**：独立 Node 24 环境、Autoloop 本地路由、本地点子入口、Router 首轮只读规划与审批、批准后隔离 Worktree 写入、会话续接和稳定 task ID 反馈。
 2. **已完成并实测**：联合上下文任务包、最多 3 个不重叠范围 Worker、真实 Codex 子 Agent 分派、Router 集成、只读独立审查和普通问题自动回流。
 3. **已实现并本机验证**：任务分支发布器、现有 PR/MR 更新、GitHub/GitLab CI 轮询与 `repairExhausted` 边界；发布器以临时 bare Git 远端实测，CI 以集成测试覆盖。不会自动合并或部署。
-4. **待真实外部验收**：使用已认证 GitHub 远端确认 PR 创建、CI 事件回流和两轮修复/耗尽后暂停；另需第二台物理设备验证海战棋 LAN。试点仓库没有远端，不能代替这些验证。
+4. **部分真实外部验收**：GitHub 任务分支推送、PR 创建、Actions 成功和 `ci.passed` 回流已在海战棋试点验证；仍需真实验证 CI 失败后两轮修复及第三次失败暂停、GitLab MR 路径，以及第二台物理设备的局域网联机。PR 不自动合并；游戏没有公网部署。
 
 ## 试点评估
 

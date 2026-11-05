@@ -36,6 +36,9 @@ test("pushes a task branch to a disposable Git remote before creating a mocked P
   writeFileSync(join(worktree, "feature.txt"), "delivered\n");
   git(["add", "feature.txt"], worktree);
   git(["commit", "-m", "Add delivered feature"], worktree);
+  writeFileSync(join(worktree, "PROGRESS.md"), "Local task state\n");
+  writeFileSync(join(worktree, "BLOCKED.md"), "No blockers\n");
+  writeFileSync(join(worktree, "task-context.json"), "{}\n");
 
   const ghCalls = [];
   const run = (bin, args, cwd) => {

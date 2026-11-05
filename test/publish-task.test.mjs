@@ -90,6 +90,17 @@ test("does not publish when origin is missing", async () => {
   assert.ok(!calls.some(([bin, args]) => bin === "git" && args[0] === "push"));
 });
 
+test("allows only the three untracked local task-state files", async () => {
+  const localState = fakeRunner({ dirty: "?? PROGRESS.md\n?? BLOCKED.md\n?? task-context.json" });
+  const result = await publishTask({ context, cwd: "/tmp/task-worktree", run: localState.run });
+  assert.equal(result.published, true);
+  assert.ok(localState.calls.some(([bin, args]) => bin === "git" && args[0] === "push"));
+
+  const productFile = fakeRunner({ dirty: "?? notes-from-user.md" });
+  await assert.rejects(publishTask({ context, cwd: "/tmp/task-worktree", run: productFile.run }), /未提交改动/);
+  assert.equal(productFile.calls.some(([bin, args]) => bin === "git" && args[0] === "push"), false);
+});
+
 test("rejects dirty worktrees and branches belonging to another task before side effects", async () => {
   const dirty = fakeRunner({ dirty: " M src/app.js" });
   await assert.rejects(publishTask({ context, cwd: "/tmp/task-worktree", run: dirty.run }), /未提交改动/);

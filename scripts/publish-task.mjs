@@ -21,6 +21,16 @@ function canonicalPath(path) {
   try { return realpathSync(absolute); } catch { return absolute; }
 }
 
+const LOCAL_TASK_FILES = new Set(["PROGRESS.md", "BLOCKED.md", "task-context.json"]);
+
+function productWorktreeChanges(status) {
+  return status.split(/\r?\n/).filter(Boolean).filter((line) => {
+    const code = line.slice(0, 2);
+    const path = line.slice(3);
+    return !(code === "??" && LOCAL_TASK_FILES.has(path));
+  });
+}
+
 export function repositoryProvider({ remote, context, worktree }) {
   const host = hostFromRemote(remote);
   const explicit = context.repository.provider;
@@ -62,7 +72,7 @@ export async function publishTask({ context, cwd, run = command }) {
   if (branch !== expectedBranch || context.repository.branch !== expectedBranch) {
     throw new Error(`拒绝发布非当前任务分支：要求 ${expectedBranch}，当前 ${branch || "（分离 HEAD）"}，记录 ${context.repository.branch}`);
   }
-  if ((await run("git", ["status", "--porcelain"], worktree)).trim()) {
+  if (productWorktreeChanges(await run("git", ["status", "--porcelain"], worktree)).length) {
     throw new Error("Worktree 有未提交改动；先完成审查并提交，再发布");
   }
 

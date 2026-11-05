@@ -122,9 +122,10 @@ function codexProgram() {
   return CODEX_PATHS.find(existsSync) ?? "codex";
 }
 
-export function codexArgs(turn, writeAccess) {
+export function codexArgs(turn, writeAccess, writableGitDirs = []) {
   return [
     "exec",
+    ...(writeAccess ? writableGitDirs.flatMap((directory) => ["--add-dir", directory]) : []),
     ...(turn.resume ? ["resume", "--all"] : []),
     "--json",
     "--skip-git-repo-check",
@@ -148,8 +149,16 @@ function main() {
   const { workspace, branch } = ensureWorktree({ repoPath: turn.cwd, codexHome, context });
   const writeAccess = hasImplementationApproval(turn, context);
   if (writeAccess) startFeatureBranch(workspace, branch);
+  // Linked Worktrees keep their index/commit metadata in a per-worktree Git dir and refs
+  // in the common Git dir. Expose only those two metadata roots after exact task approval.
+  const writableGitDirs = writeAccess
+    ? [
+        git(workspace, ["rev-parse", "--path-format=absolute", "--git-dir"]).stdout.trim(),
+        git(workspace, ["rev-parse", "--path-format=absolute", "--git-common-dir"]).stdout.trim(),
+      ].map((directory) => realpathSync(directory))
+    : [];
 
-  const child = spawn(codexProgram(), codexArgs(turn, writeAccess), {
+  const child = spawn(codexProgram(), codexArgs(turn, writeAccess, writableGitDirs), {
     cwd: workspace,
     env: {
       ...process.env,
