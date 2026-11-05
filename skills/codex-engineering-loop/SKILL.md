@@ -1,9 +1,9 @@
 ---
-name: codex-idea-to-delivery
-description: Turn a new idea or an unfinished repository into a scoped, tested, reviewable Codex delivery with a bounded repair loop. Use when the user asks to start a product idea, continue a half-built project, or automate planning through PR and CI repair.
+name: codex-engineering-loop
+description: Turn a new idea, unfinished project, or existing product maintenance request (feature, bug fix, or upkeep) into a scoped, tested, reviewable Codex delivery. Use for planning, implementation, verification, review, PR, and bounded CI repair across the project lifecycle.
 ---
 
-# Codex Idea to Delivery
+# Codex Engineering Loop
 
 This Skill describes the work method. Agent-Autoloop owns durable events and task state; Codex owns each isolated implementation session. Do not create a second scheduler or run a second orchestrator over the same task.
 

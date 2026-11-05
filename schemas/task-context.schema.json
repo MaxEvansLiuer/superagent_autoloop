@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://codex.local/schemas/task-context.schema.json",
-  "title": "Codex Idea to Delivery task context",
+  "title": "Codex Engineering Loop task context",
   "type": "object",
   "additionalProperties": false,
   "required": [
