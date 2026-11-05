@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { readProjects } from "./project-registry.mjs";
 
 function run(command, args, cwd) {
   const result = spawnSync(command, args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
@@ -48,7 +49,7 @@ export function normalizeGitLabPipelines(pipelines) {
   });
 }
 
-export function makeCIEvent({ taskId, headSha, runs, repairLimit = 2 }) {
+export function makeCIEvent({ taskId, headSha, runs, repairLimit = 2, projectId = "" }) {
   const state = classifyCurrentCommit(runs, headSha);
   if (!state) return null;
   const current = runs.filter((run) => run.headSha === headSha);
@@ -58,8 +59,8 @@ export function makeCIEvent({ taskId, headSha, runs, repairLimit = 2 }) {
   const repairExhausted = repairAttempt >= repairLimit;
   const workflowRuns = current.map(({ databaseId, name, conclusion, url }) => ({ databaseId, name, conclusion, url }));
   return {
-    id: `github-ci-${state}-${headSha}`,
-    type: state === "failed" ? "ci.failed" : "ci.passed",
+    id: `github-ci-${projectId ? `${projectId}-` : ""}${state}-${headSha}`,
+    type: projectId ? `ci.${projectId}.${state}` : state === "failed" ? "ci.failed" : "ci.passed",
     subject: taskId,
     summary: state === "failed"
       ? repairExhausted
@@ -146,7 +147,7 @@ function writeAuthenticationCard(provider, host) {
   console.log("```");
 }
 
-function pollTask({ worktree, context, provider, host }) {
+function pollTask({ worktree, context, provider, host, projectId }) {
   const taskId = context.taskId;
   const branch = run("git", ["branch", "--show-current"], worktree);
   if (!branch.startsWith("codex/") || branch !== context.repository?.branch) return null;
@@ -154,7 +155,16 @@ function pollTask({ worktree, context, provider, host }) {
   const rows = provider === "github"
     ? JSON.parse(run("gh", ["run", "list", "--branch", branch, "--limit", "100", "--json", "databaseId,status,conclusion,headSha,url,name"], worktree))
     : normalizeGitLabPipelines(JSON.parse(run("glab", ["ci", "list", "--ref", branch, "--output", "json", "--per-page", "100"], worktree)));
-  return makeCIEvent({ taskId, headSha, runs: rows });
+  return makeCIEvent({ taskId, headSha, runs: rows, projectId });
+}
+
+function projectIdForContext(context, projects) {
+  if (context.projectId && projects.some((project) => project.id === context.projectId)) return context.projectId;
+  const repositoryPath = resolve(context.repository?.path || "");
+  const matches = projects.filter((project) => resolve(project.path) === repositoryPath);
+  if (matches.length === 1) return matches[0].id;
+  if (projects.length === 1) return projects[0].id;
+  throw new Error(`任务 ${context.taskId} 无法映射到唯一的已登记项目`);
 }
 
 function writeReceipt(events) {
@@ -171,10 +181,12 @@ function writeReceipt(events) {
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     const codexHome = process.env.CODEX_HOME || join(homedir(), ".codex");
+    const autoHome = process.env.AGENT_AUTOLOOP_HOME || join(dirname(fileURLToPath(import.meta.url)), "../.local/agent-autoloop");
+    const projects = readProjects(autoHome);
     const tasks = trackedTasks(codexHome).map((task) => {
       const remote = originUrl(task.worktree);
       const scm = remote ? resolveProvider({ remote, context: task.context, worktree: task.worktree }) : null;
-      return scm ? { ...task, ...scm } : null;
+      return scm ? { ...task, ...scm, projectId: projectIdForContext(task.context, projects) } : null;
     }).filter(Boolean);
     for (const task of tasks) {
       if (authenticationNeeded(process.env.AGENT_AUTOLOOP_CONTEXT, task.provider, task.host)) {

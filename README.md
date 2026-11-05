@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-本机 MVP 正在开发和试跑。用户提出的局域网海战棋是用来验收这套工具的试点项目；它不是本仓库的最终产品目标。合并、发布和部署始终由人确认。
+本机 MVP 正在试跑。海战棋是验收夹具，不是本仓库的最终产品。项目登记数不设固定上限；全局并发容量随登记项目数增长，登记 10 个项目时可同时处理 10 个任务，超出的任务排队。合并、发布和部署始终由人确认。
 
 ## Router 与 Worker
 
@@ -30,29 +30,36 @@ PATH="/opt/homebrew/opt/node@24/bin:$PATH" \
 ./scripts/agent-autoloop.sh up
 ```
 
-另一个终端提交点子：
+查看已登记项目；添加其他 Git 仓库（数量不限）：
 
 ```sh
-./scripts/new-demo-idea.sh "新增一个 API，并写清验收标准"
+node scripts/projects.mjs list
+node scripts/projects.mjs add api /绝对路径/到/api仓库 "API 项目"
+node scripts/projects.mjs add web /绝对路径/到/web仓库 "Web 项目"
 ```
 
-Autoloop 会先安排只读调研并显示审批卡。只有明确选择“同意，开始实现”后，任务 Worker 才在独立 Git Worktree 中创建功能分支并获得写权限；同一批准也会把该任务 Worktree 的 Git 元数据目录与仓库共用 Git 目录加入可写范围，以便提交任务分支。首轮规划不会获得这项额外写权限。
-
-将当前项目切换到另一个本地仓库时，用该仓库路径重配路由，再提交点子：
+提交点子时，只有一个项目登记时可省略项目编号；登记多个项目后必须指定编号：
 
 ```sh
+./scripts/new-idea.sh --project api "新增一个 API，并写清验收标准"
+```
+
+登记的项目由受信任的本机项目表解析，不从点子正文读取仓库路径。任务通过全局并发池执行，容量随项目数增长，任务 ID 和会话各自隔离，审批卡和后续通知对应各自任务。Autoloop 会先安排只读调研并显示审批卡。只有明确选择“同意，开始实现”后，任务 Worker 才在对应仓库的独立 Git Worktree 中创建功能分支并获得写权限；首轮规划不会获得这项额外写权限。
+
+仅在首次配置、尚无 `projects.json` 时，才用环境变量指定第一个项目。已有登记后请用 `projects.mjs add` 增加项目；配置器不会静默替换现有仓库路径：
+
+```sh
+IDEA_PROJECT_ID=app \
 IDEA_REPO_PATH="/绝对路径/到/半成品仓库" \
-IDEA_RULE_NAME="新点子到交付（我的项目）" \
 PATH="/opt/homebrew/opt/node@24/bin:$PATH" \
 node scripts/configure-demo.mjs
-scripts/new-idea.sh "继续完成这个仓库的登录流程，并补齐验收"
 ```
 
 后续审查意见和 CI 失败使用原任务 ID 回到同一个 Router 会话，普通范围内问题由 Router 派回 Worker 自动修复：
 
 ```sh
-scripts/continue-task.sh review.finding idea-a8e5d3e65fe0 "缺少 X 输入边界校验；范围内，请修复并重跑测试"
-scripts/continue-task.sh ci.failed idea-a8e5d3e65fe0 "run 123 的提交 SHA ... 失败；日志摘要 ..."
+scripts/continue-task.sh review.finding idea-api-a8e5d3e65fe0 "缺少 X 输入边界校验；范围内，请修复并重跑测试"
+scripts/continue-task.sh ci.failed idea-api-a8e5d3e65fe0 "run 123 的提交 SHA ... 失败；日志摘要 ..."
 ```
 
 配置器同时增加每 5 分钟一次的 CI 轮询：GitHub 使用 `gh run list`，GitLab 使用 `glab ci list`。它只检查已登记任务 Worktree 当前 HEAD，等该提交关联的工作流全部结束后才回送 `ci.failed` 或 `ci.passed`；失败事件附上运行编号和链接，Router 再读取失败日志。事件 ID 按提交 SHA 稳定生成，由 Autoloop 去重。失败事件区分失败提交数、已执行修复轮数和 `repairExhausted`；第三次失败只请求用户裁决，不再派发修复。没有受支持远端的本机任务会直接跳过，不启动模型会话。

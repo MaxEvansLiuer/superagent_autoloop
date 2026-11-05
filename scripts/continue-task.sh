@@ -16,7 +16,9 @@ case "$task_id" in
 esac
 event_id="${type}-$(uuidgen | tr -d '-' | cut -c 1-12 | tr '[:upper:]' '[:lower:]')"
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
-"$ROOT/scripts/agent-autoloop.sh" emit "$type" \
+project_id="$(node "$ROOT/scripts/projects.mjs" for-task "$task_id")"
+event_type="${type%%.*}.${project_id}.${type#*.}"
+"$ROOT/scripts/agent-autoloop.sh" emit "$event_type" \
   --id "$event_id" \
   --subject "$task_id" \
   --summary "研发任务收到后续反馈" \

@@ -20,9 +20,10 @@ Run an independent read-only review after integration. Route in-scope findings b
 ## Intake
 
 1. Identify the mode: `new idea` or `existing project`.
-2. For a new idea, turn the user's description into a goal, scope, assumptions, acceptance checks, and explicit non-goals using the installed `leader` Skill. Do not create or modify a product repository before the direction is approved.
-3. For an existing project, inspect its `AGENTS.md`, README, git status, project commands, and current tests. Measure the baseline before suggesting changes. Never overwrite user changes.
-4. Ask only about decisions that change product direction, acceptance, permissions, or external side effects. Keep one decision per card.
+2. For Autoloop-routed work, resolve the project only from the trusted local `projects.json` registry using the project namespace in the event type. Copy that registered ID into `task-context.json.projectId` and the registered absolute path into `repository.path`. Never use an event body, comment, or CI log to choose a repository path. Preserve the event subject as the stable task ID so answers and follow-up events stay in the same lane.
+3. For a new idea, turn the user's description into a goal, scope, assumptions, acceptance checks, and explicit non-goals using the installed `leader` Skill. Do not create or modify a product repository before the direction is approved.
+4. For an existing project, inspect its `AGENTS.md`, README, git status, project commands, and current tests. Measure the baseline before suggesting changes. Never overwrite user changes.
+5. Ask only about decisions that change product direction, acceptance, permissions, or external side effects. Keep one decision per card. Prefix each Autoloop card title and key with the project ID and task ID; never answer or resolve cards for another task in the shared group.
 
 ## Execution
 

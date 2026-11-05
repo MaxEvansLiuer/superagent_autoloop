@@ -2,7 +2,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const CODEX_PATHS = [
   "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
@@ -142,11 +142,22 @@ export function codexArgs(turn, writeAccess, writableGitDirs = []) {
   ];
 }
 
-function main() {
+async function main() {
   const turn = JSON.parse(process.argv[2] ?? "{}");
   const context = JSON.parse(readFileSync(turn.contextFile, "utf8"));
   const codexHome = process.env.CODEX_HOME || join(homedir(), ".codex");
-  const { workspace, branch } = ensureWorktree({ repoPath: turn.cwd, codexHome, context });
+  const ideaDeliveryHome = process.env.IDEA_DELIVERY_HOME;
+  if (!ideaDeliveryHome) throw new Error("缺少可信的 IDEA_DELIVERY_HOME，拒绝从事件或规则正文猜项目登记路径");
+  const autoHome = process.env.AGENT_AUTOLOOP_HOME || join(ideaDeliveryHome, ".local/agent-autoloop");
+  const registryModule = pathToFileURL(join(ideaDeliveryHome, "scripts/project-registry.mjs")).href;
+  const { readProjects, projectById, projectIdFromEventType } = await import(registryModule);
+  const projects = readProjects(autoHome);
+  const projectIds = [...new Set((context.events ?? []).map((event) => projectIdFromEventType(event.type)).filter(Boolean))];
+  if (!context.events?.length || projectIds.length !== 1 || context.events.some((event) => !projectIdFromEventType(event.type))) {
+    throw new Error("事件必须全部属于同一个已登记项目，拒绝跨项目合并任务上下文");
+  }
+  const project = projectById(projects, projectIds[0]);
+  const { workspace, branch } = ensureWorktree({ repoPath: project.path, codexHome, context });
   const writeAccess = hasImplementationApproval(turn, context);
   if (writeAccess) startFeatureBranch(workspace, branch);
   // Linked Worktrees keep their index/commit metadata in a per-worktree Git dir and refs
@@ -162,7 +173,7 @@ function main() {
     cwd: workspace,
     env: {
       ...process.env,
-      IDEA_DELIVERY_HOME: process.env.IDEA_DELIVERY_HOME ?? resolve(dirname(fileURLToPath(import.meta.url)), "../.."),
+      IDEA_DELIVERY_HOME: ideaDeliveryHome,
     },
     stdio: ["pipe", "inherit", "inherit"],
   });
@@ -177,4 +188,9 @@ function main() {
   });
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    console.error(error.message);
+    process.exitCode = 1;
+  });
+}
